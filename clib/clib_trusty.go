@@ -1,4 +1,4 @@
-// +build !trusty
+// +build trusty
 
 /*
 
@@ -114,11 +114,8 @@ go_xmlsec_key_has_dsa(xmlSecKey *key) {
 
 static int
 go_xmlsec_key_has_ecdsa(xmlSecKey *key) {
-	xmlSecKeyDataPtr data = xmlSecKeyGetData(key, xmlSecKeyDataEcdsaId);
-	if (data == NULL) {
-		return 0;
-	}
-	return 1;
+	(void)(key);
+	return 0;
 }
 
 static int
