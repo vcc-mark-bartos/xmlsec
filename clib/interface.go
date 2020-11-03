@@ -1,6 +1,9 @@
 package clib
 
-import "errors"
+import (
+	"errors"
+	"unsafe"
+)
 
 const (
 	DSigNs        = "http://www.w3.org/2000/09/xmldsig#"
@@ -9,6 +12,7 @@ const (
 )
 
 type KeyDataType uint
+
 const (
 	KeyDataTypeUnknown   KeyDataType = 0x0000
 	KeyDataTypeNone      KeyDataType = 0x0000
@@ -37,4 +41,11 @@ var (
 // in uintptr format.
 type PtrSource interface {
 	Pointer() uintptr
+}
+
+type XMLIOCallbacker interface {
+	XMLInputMatchCallback(string) int
+	XMLInputOpenCallback(string) unsafe.Pointer
+	XMLInputReadCallback(unsafe.Pointer, int) ([]byte, int)
+	XMLInputCloseCallback(unsafe.Pointer) int
 }

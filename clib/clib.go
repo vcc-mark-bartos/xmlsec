@@ -1,5 +1,3 @@
-// +build !trusty
-
 /*
 
 Package clib holds all of the dirty C interaction for go-xmlsec.
@@ -28,6 +26,7 @@ package clib
 #include <libxml/tree.h>
 #include <libxml/xmlerror.h>
 #include <libxml/xmlstring.h>
+#include <libxml/xmlIO.h>
 #include <libxslt/xslt.h>
 #include <libxslt/security.h>
 #include <xmlsec/xmlsec.h>
@@ -36,6 +35,7 @@ package clib
 #include <xmlsec/templates.h>
 #include <xmlsec/transforms.h>
 #include <xmlsec/crypto.h>
+#include <xmlsec/io.h>
 
 static inline xmlChar* to_xmlcharptr(const char *s) {
   return (xmlChar *) s;
@@ -74,7 +74,7 @@ go_xmlsec_init() {
     return -1;
   }
 
-	return 0;
+  return 0;
 }
 
 static void
@@ -130,16 +130,32 @@ go_xmlsec_key_has_rsa(xmlSecKey *key) {
 	return 1;
 }
 
+extern int
+xmlInputMatchCallbackFuncWrapper(const char *);
+
+extern void*
+xmlInputOpenCallbackFuncWrapper(const char *);
+
+extern int
+xmlInputReadCallbackFuncWrapper(void *, char *, int);
+
+extern int
+xmlInputCloseCallbackFuncWrapper(void *);
+
 */
 import "C"
 import (
 	"errors"
+	"fmt"
 	"unsafe"
 
 	"github.com/lestrrat-go/libxml2/clib"
 	"github.com/lestrrat-go/libxml2/dom"
 	"github.com/lestrrat-go/libxml2/types"
 )
+
+// TODO: array
+var defaultXMLIOCallbacker XMLIOCallbacker
 
 type KeyDataFormat int
 
@@ -755,4 +771,67 @@ func XMLSecKeysMngrGetKey(mngr PtrSource, n PtrSource) (uintptr, error) {
 		return 0, errors.New("failed to get key")
 	}
 	return uintptr(unsafe.Pointer(keyptr)), nil
+}
+
+func XMLSecIORegisterCallbacks(callbacker XMLIOCallbacker) error {
+	if ret := C.xmlSecIORegisterCallbacks(
+		C.xmlInputMatchCallback(C.xmlInputMatchCallbackFuncWrapper),
+		C.xmlInputOpenCallback(C.xmlInputOpenCallbackFuncWrapper),
+		C.xmlInputReadCallback(C.xmlInputReadCallbackFuncWrapper),
+		C.xmlInputCloseCallback(C.xmlInputCloseCallbackFuncWrapper),
+	); ret < 0 {
+		return fmt.Errorf("failed to register io callbacks, return value: %d", ret)
+	}
+	defaultXMLIOCallbacker = callbacker
+
+	return nil
+}
+
+func XMLSecIOCleanupCallbacks() {
+	C.xmlSecIOCleanupCallbacks()
+	defaultXMLIOCallbacker = nil
+}
+
+func XMLSecIORegisterDefaultCallbacks() error {
+	if ret := C.xmlSecIORegisterDefaultCallbacks(); ret < 0 {
+		return fmt.Errorf("failed to register default io callbacks, return value: %d", ret)
+	}
+	return nil
+}
+
+//export xmlInputMatchCallbackFunc
+func xmlInputMatchCallbackFunc(filename *C.char) C.int {
+	if defaultXMLIOCallbacker == nil {
+		return 0
+	}
+	return C.int(defaultXMLIOCallbacker.XMLInputMatchCallback(C.GoString(filename)))
+}
+
+//export xmlInputOpenCallbackFunc
+func xmlInputOpenCallbackFunc(filename *C.char) unsafe.Pointer {
+	if defaultXMLIOCallbacker == nil {
+		return unsafe.Pointer(&[]byte{0})
+	}
+	return defaultXMLIOCallbacker.XMLInputOpenCallback(C.GoString(filename))
+}
+
+//export xmlInputReadCallbackFunc
+// NOTE: different solution: `*(*C.char)unsafe.Pointer(uintptr(ptr)+1) = X` in a loop
+func xmlInputReadCallbackFunc(context unsafe.Pointer, buffer *C.char, len C.int) C.int {
+	if defaultXMLIOCallbacker == nil {
+		return 0
+	}
+	b, i := defaultXMLIOCallbacker.XMLInputReadCallback(context, int(len))
+	buf := C.GoBytes(unsafe.Pointer(buffer), len)
+	copy(buf, b)
+
+	return C.int(i)
+}
+
+//export xmlInputCloseCallbackFunc
+func xmlInputCloseCallbackFunc(context unsafe.Pointer) C.int {
+	if defaultXMLIOCallbacker == nil {
+		return 0
+	}
+	return C.int(defaultXMLIOCallbacker.XMLInputCloseCallback(context))
 }
