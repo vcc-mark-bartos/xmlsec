@@ -827,7 +827,7 @@ func xmlInputReadCallbackFunc(context unsafe.Pointer, buffer *C.char, buflen C.i
 		return 0
 	}
 	b, i := defaultXMLIOCallbacker.XMLInputReadCallback(context, int(buflen))
-	if len(b) == 0 {
+	if i == 0 && len(b) == 0 {
 		return 0
 	}
 	buf := C.GoBytes(unsafe.Pointer(buffer), buflen)
