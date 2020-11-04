@@ -142,6 +142,16 @@ xmlInputReadCallbackFuncWrapper(void *, char *, int);
 extern int
 xmlInputCloseCallbackFuncWrapper(void *);
 
+static int
+go_xmlSecIORegisterCallbacks()
+{
+	return xmlSecIORegisterCallbacks(
+		xmlInputMatchCallbackFuncWrapper,
+		xmlInputOpenCallbackFuncWrapper,
+		xmlInputReadCallbackFuncWrapper,
+		xmlInputCloseCallbackFuncWrapper);
+}
+
 */
 import "C"
 import (
@@ -774,12 +784,7 @@ func XMLSecKeysMngrGetKey(mngr PtrSource, n PtrSource) (uintptr, error) {
 }
 
 func XMLSecIORegisterCallbacks(callbacker XMLIOCallbacker) error {
-	if ret := C.xmlSecIORegisterCallbacks(
-		C.xmlInputMatchCallback(C.xmlInputMatchCallbackFuncWrapper),
-		C.xmlInputOpenCallback(C.xmlInputOpenCallbackFuncWrapper),
-		C.xmlInputReadCallback(C.xmlInputReadCallbackFuncWrapper),
-		C.xmlInputCloseCallback(C.xmlInputCloseCallbackFuncWrapper),
-	); ret < 0 {
+	if ret := C.go_xmlSecIORegisterCallbacks(); ret < 0 {
 		return fmt.Errorf("failed to register io callbacks, return value: %d", ret)
 	}
 	defaultXMLIOCallbacker = callbacker
@@ -810,13 +815,13 @@ func xmlInputMatchCallbackFunc(filename *C.char) C.int {
 //export xmlInputOpenCallbackFunc
 func xmlInputOpenCallbackFunc(filename *C.char) unsafe.Pointer {
 	if defaultXMLIOCallbacker == nil {
-		return unsafe.Pointer(&[]byte{0})
+		return unsafe.Pointer(uintptr(0))
 	}
 	return defaultXMLIOCallbacker.XMLInputOpenCallback(C.GoString(filename))
 }
 
-//export xmlInputReadCallbackFunc
 // NOTE: different solution: `*(*C.char)unsafe.Pointer(uintptr(ptr)+1) = X` in a loop
+//export xmlInputReadCallbackFunc
 func xmlInputReadCallbackFunc(context unsafe.Pointer, buffer *C.char, len C.int) C.int {
 	if defaultXMLIOCallbacker == nil {
 		return 0
