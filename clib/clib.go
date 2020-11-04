@@ -157,6 +157,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"unsafe"
 
 	"github.com/lestrrat-go/libxml2/clib"
@@ -820,20 +821,30 @@ func xmlInputOpenCallbackFunc(filename *C.char) unsafe.Pointer {
 	return defaultXMLIOCallbacker.XMLInputOpenCallback(C.GoString(filename))
 }
 
-// NOTE: different solution: `*(*C.char)unsafe.Pointer(uintptr(ptr)+1) = X` in a loop
 //export xmlInputReadCallbackFunc
 func xmlInputReadCallbackFunc(context unsafe.Pointer, buffer *C.char, buflen C.int) C.int {
 	if defaultXMLIOCallbacker == nil {
 		return 0
 	}
-	b, i := defaultXMLIOCallbacker.XMLInputReadCallback(context, int(buflen))
-	if i == 0 && len(b) == 0 {
+	b, n := defaultXMLIOCallbacker.XMLInputReadCallback(context, int(buflen))
+	if len(b) == 0 {
 		return 0
 	}
-	buf := C.GoBytes(unsafe.Pointer(buffer), buflen)
-	copy(buf, b)
+	if n < 0 {
+		return C.int(n)
+	}
+	/*for i := uint64(0); i < uint64(n); i++ {
+		*(*C.char)(unsafe.Pointer(uintptr(unsafe.Pointer(buffer)) + uintptr(i))) = C.char(b[i])
+	}*/
+	slice := &reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(buffer)),
+		Len:  int(buflen),
+		Cap:  int(buflen),
+	}
+	rbuf := *(*[]byte)(unsafe.Pointer(slice))
+	copy(rbuf, b)
 
-	return C.int(i)
+	return C.int(n)
 }
 
 //export xmlInputCloseCallbackFunc
