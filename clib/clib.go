@@ -822,12 +822,15 @@ func xmlInputOpenCallbackFunc(filename *C.char) unsafe.Pointer {
 
 // NOTE: different solution: `*(*C.char)unsafe.Pointer(uintptr(ptr)+1) = X` in a loop
 //export xmlInputReadCallbackFunc
-func xmlInputReadCallbackFunc(context unsafe.Pointer, buffer *C.char, len C.int) C.int {
+func xmlInputReadCallbackFunc(context unsafe.Pointer, buffer *C.char, buflen C.int) C.int {
 	if defaultXMLIOCallbacker == nil {
 		return 0
 	}
-	b, i := defaultXMLIOCallbacker.XMLInputReadCallback(context, int(len))
-	buf := C.GoBytes(unsafe.Pointer(buffer), len)
+	b, i := defaultXMLIOCallbacker.XMLInputReadCallback(context, int(buflen))
+	if len(b) == 0 {
+		return 0
+	}
+	buf := C.GoBytes(unsafe.Pointer(buffer), buflen)
 	copy(buf, b)
 
 	return C.int(i)
